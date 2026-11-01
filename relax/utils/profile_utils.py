@@ -17,6 +17,7 @@ from relax.utils.env import Envs
 from relax.utils.http_utils import router_worker_base_urls
 from relax.utils.logging_utils import get_logger
 from relax.utils.memory_utils import print_memory
+from relax.utils.optional_args import optional_arg
 
 
 logger = get_logger(__name__)
@@ -51,7 +52,7 @@ def _get_rank_tag() -> str:
 
 
 def _should_profile_train_rank(args) -> bool:
-    ranks = getattr(args, "profile_ranks", None)
+    ranks = optional_arg(args, "profile_ranks", None)
     return _profile_this_rank() and (
         ranks is None or torch.distributed.get_rank(group=torch.distributed.group.WORLD) in ranks
     )
@@ -116,12 +117,12 @@ def _get_trace_base_dir(args):
     Uses ``./traces/<tb_experiment_name>`` as the default location. Falls back
     to ``./traces/<timestamp>`` when ``--tb-experiment-name`` is not set.
     """
-    task_name = getattr(args, "tb_experiment_name", None)
+    task_name = args.tb_experiment_name
     if task_name is None:
         from datetime import datetime
 
         task_name = datetime.now().strftime("%Y%m%d_%H%M%S")
-    return os.path.join(getattr(args, "profile_output_dir", None) or "traces", task_name)
+    return os.path.join(args.profile_output_dir or "traces", task_name)
 
 
 def _get_train_trace_dir(args):
@@ -193,7 +194,7 @@ class _BaseMemoryProfiler:
         return c(args)
 
     def __init__(self, args):
-        snapshot_dir = getattr(args, "memory_snapshot_dir", None)
+        snapshot_dir = args.memory_snapshot_dir
         if snapshot_dir is None:
             snapshot_dir = os.path.join(_get_trace_base_dir(args), "memory_snapshot")
         os.makedirs(snapshot_dir, exist_ok=True)
@@ -328,7 +329,7 @@ async def _get_sglang_worker_urls(args) -> list[str]:
 
     from relax.utils.http_utils import get
 
-    if parse(sglang_router.__version__) <= parse("0.2.1") or getattr(args, "use_slime_router", False):
+    if parse(sglang_router.__version__) <= parse("0.2.1") or args.use_slime_router:
         response = await get(f"http://{args.sglang_router_ip}:{args.sglang_router_port}/list_workers")
         return router_worker_base_urls(response["urls"])
     else:

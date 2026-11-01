@@ -39,6 +39,7 @@ from relax.agentic.session.state import check_messages
 from relax.utils.http_utils import get, init_http_client, is_expected_sglang_499, post, router_worker_base_urls
 from relax.utils.logging_utils import get_logger
 from relax.utils.multimodal.config import MultimodalConfig
+from relax.utils.optional_args import optional_arg
 from relax.utils.s3_model_loader import prepare_model_maybe_update_args
 from relax.utils.score_centering import (
     configure_score_centering_request,
@@ -930,7 +931,7 @@ class RuntimeDomain:
             handles.append(self._admission_coordinator)
         await asyncio.wait_for(
             asyncio.gather(*(handle.set_router_address.remote(router_ip, router_port) for handle in handles)),
-            timeout=getattr(self.args, "rollout_engine_init_timeout", 3600.0),
+            timeout=optional_arg(self.args, "rollout_engine_init_timeout", 3600.0),
         )
 
     @property
@@ -1268,9 +1269,7 @@ class RuntimeDomain:
         }
 
     async def collect_agentic_kv_metrics(self) -> dict[str, float]:
-        if not getattr(self.args, "agentic_program_admission", False) and not getattr(
-            self.args, "agentic_session_lifecycle", False
-        ):
+        if not optional_arg(self.args, "agentic_program_admission", False) and not optional_arg(self.args, "agentic_session_lifecycle", False):
             return {}
         shard_metrics = await asyncio.gather(
             *(shard.handle.agentic_kv_metrics.remote(reset=True) for shard in self._shards),

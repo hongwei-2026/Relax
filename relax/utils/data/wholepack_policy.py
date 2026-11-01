@@ -1,6 +1,10 @@
 # Copyright (c) 2026 Relax Authors. All Rights Reserved.
 """Explicit scheduling policy for the reviewed 64-GPU Qwen3.5 recipe."""
 
+from relax.backends.megatron.compat import megatron_dynamic_context_parallel
+from relax.utils.optional_args import optional_arg
+
+
 WORLD_SIZE = 64
 GLOBAL_BATCH_SIZE = 1600
 EXPERT_PARALLEL_SIZE = 8
@@ -17,7 +21,7 @@ def sampler_padding(n_samples_per_prompt: int, dp_size: int, capacity: int, pad_
 
 
 def enabled(args) -> bool:
-    return bool(getattr(args, "sft_wholepack", False))
+    return bool(args.sft_wholepack)
 
 
 def config_contract(args) -> tuple[int, int]:
@@ -33,11 +37,11 @@ def config_contract(args) -> tuple[int, int]:
         raise ValueError("wholepack requires EP8/ETP1")
     if args.qkv_format != "thd" or not args.use_dynamic_batch_size:
         raise ValueError("wholepack requires dynamic THD binpack")
-    if getattr(args, "virtual_pipeline_model_parallel_size", None) not in (None, 1):
+    if optional_arg(args, "virtual_pipeline_model_parallel_size", None) not in (None, 1):
         raise ValueError("wholepack does not support VPP")
-    if getattr(args, "sft_async_prepack", False) or getattr(args, "dynamic_context_parallel", False):
+    if args.sft_async_prepack or megatron_dynamic_context_parallel(args):
         raise ValueError("wholepack draft does not support async prepack or dynamicCP")
     sampler_padding(args.n_samples_per_prompt, WORLD_SIZE // tp, capacity, pad_size)
-    if getattr(args, "rollout_batch_size", GLOBAL_BATCH_SIZE) != GLOBAL_BATCH_SIZE:
+    if args.rollout_batch_size != GLOBAL_BATCH_SIZE:
         raise ValueError("wholepack requires one GBS1600 optimizer step per rollout")
     return capacity, pad_size

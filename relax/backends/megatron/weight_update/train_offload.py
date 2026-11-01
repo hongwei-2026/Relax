@@ -35,6 +35,7 @@ import torch
 from relax.utils import device as device_utils
 from relax.utils.device import device_module
 from relax.utils.logging_utils import get_logger
+from relax.utils.optional_args import optional_arg
 
 
 logger = get_logger(__name__)
@@ -148,7 +149,7 @@ class _SelectiveOffloadStrategy:
         # When Megatron's --optimizer-cpu-offload is active, HybridDeviceOptimizer
         # manages its own CPU/GPU tensor placement; moving optimizer state ourselves
         # would break its invariants (_fused_adam device mismatch).
-        self._skip_optimizer: bool = bool(getattr(args, "optimizer_cpu_offload", False))
+        self._skip_optimizer: bool = bool(optional_arg(args, "optimizer_cpu_offload", False))
 
     def _iter_optimizers(self) -> Iterator:
         """Yield every Megatron DistributedOptimizer (unwrapping
@@ -367,11 +368,11 @@ class MegatronTrainStateOffloader:
     """
 
     def __init__(self, model: Optional[List], optimizer, args) -> None:
-        self.enabled: bool = bool(getattr(args, "offload_train", False))
+        self.enabled: bool = bool(args.offload_train)
         self.uses_tms: bool = False
 
         # Default is torch_memory_saver; --selective-offload forces the selective path.
-        force_selective = bool(getattr(args, "selective_offload", False))
+        force_selective = bool(args.selective_offload)
         if self.enabled and not force_selective:
             if torch_memory_saver_preloaded():
                 self.uses_tms = self._init_torch_memory_saver(args)
@@ -381,7 +382,7 @@ class MegatronTrainStateOffloader:
                     "offload. Pass --selective-offload to select it explicitly and silence this warning."
                 )
 
-        if self.enabled and not self.uses_tms and getattr(args, "optimizer", "adam") == "sgd":
+        if self.enabled and not self.uses_tms and optional_arg(args, "optimizer", "adam") == "sgd":
             raise ValueError(
                 "SGD does not support selective train-state offload; use a working "
                 "torch_memory_saver configuration or disable train-state offload."
@@ -400,7 +401,7 @@ class MegatronTrainStateOffloader:
         offload."""
         from torch_memory_saver import torch_memory_saver
 
-        margin = max(int(getattr(args, "train_memory_margin_bytes", 0)), 0)
+        margin = max(int(args.train_memory_margin_bytes), 0)
         try:
             torch_memory_saver.memory_margin_bytes = margin
             if margin > 0:

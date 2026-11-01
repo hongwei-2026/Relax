@@ -4,6 +4,8 @@ norms."""
 
 import os
 
+from relax.utils.optional_args import optional_arg
+
 
 class NonFiniteGradientNormError(FloatingPointError):
     """No child optimizer has updated when this exception is raised."""
@@ -16,9 +18,9 @@ def skip_nonfinite_enabled() -> bool:
 def configure_nonfinite_guard(args: object) -> bool:
     """Select step-level handling before DDP constructs its gradient
     buckets."""
-    if not skip_nonfinite_enabled() or getattr(args, "only_load_weight", False):
+    if not skip_nonfinite_enabled() or args.only_load_weight:
         return False
-    if not getattr(args, "bf16", False) or getattr(args, "fp16", False):
+    if not optional_arg(args, "bf16", False) or optional_arg(args, "fp16", False):
         raise ValueError("Nonfinite step skipping currently requires BF16 (no dynamic loss scaler)")
     for name in (
         "fp8",

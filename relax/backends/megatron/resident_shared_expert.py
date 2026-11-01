@@ -11,6 +11,7 @@ from collections.abc import Sequence
 from typing import Any
 
 from relax.utils.env import Envs
+from relax.utils.optional_args import optional_arg
 
 
 def _verify_runtime_config(config: Any) -> None:
@@ -59,7 +60,7 @@ def verify_resident_shared_readiness(args: Namespace, model_chunks: Sequence[Any
     args._relax_shared_expert_gate_ready_verified = False
     if not Envs.RELAX_SFT_RESIDENT_PARAM_OVERLAP:
         return
-    shared = getattr(args, "moe_shared_expert_overlap", False)
+    shared = optional_arg(args, "moe_shared_expert_overlap", False)
     if any(
         getattr(getattr(chunk, "config", None), "moe_shared_expert_overlap", False) != shared for chunk in model_chunks
     ):
@@ -67,11 +68,11 @@ def verify_resident_shared_readiness(args: Namespace, model_chunks: Sequence[Any
     if not shared:
         return
     if (
-        getattr(args, "moe_token_dispatcher_type", None) != "flex"
-        or getattr(args, "moe_flex_dispatcher_backend", None) != "deepep"
+        optional_arg(args, "moe_token_dispatcher_type", None) != "flex"
+        or optional_arg(args, "moe_flex_dispatcher_backend", None) != "deepep"
         or os.environ.get("CUDA_DEVICE_MAX_CONNECTIONS") != "32"
-        or getattr(args, "cuda_graph_impl", "none") != "none"
-        or getattr(args, "enable_cuda_graph", False)
+        or optional_arg(args, "cuda_graph_impl", "none") != "none"
+        or optional_arg(args, "enable_cuda_graph", False)
     ):
         raise ValueError("Shared resident overlap is gated to flex/DeepEP, CUDA connections32 and no CUDA Graphs")
     from megatron.core.distributed import DistributedDataParallel

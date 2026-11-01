@@ -23,6 +23,8 @@ from requests.exceptions import ConnectTimeout
 from sglang.srt.server_args import ServerArgs
 from sglang.srt.utils import kill_process_tree
 
+from relax.utils.optional_args import optional_arg
+
 
 try:
     from sglang.srt.server_args import LOAD_FORMAT_CHOICES as _SGLANG_LOAD_FORMAT_CHOICES
@@ -205,7 +207,7 @@ def _configure_runai_streamer_env(args) -> None:
 
 def build_sglang_load_plan(server_args: dict, args) -> SGLangLoadPlan:
     """Build one policy loading decision for an SGLang engine group."""
-    model_source = getattr(args, "model_source", None)
+    model_source = args.model_source
     model_path = server_args["model_path"]
     load_format = server_args.get("load_format", "auto")
     if model_source is None:
@@ -249,7 +251,7 @@ def _apply_sglang_policy_load_plan(server_args: dict, args) -> dict:
     resolved["model_path"] = plan.model_path
     resolved["load_format"] = plan.load_format
     if (
-        getattr(args, "model_source", None) is not None
+        args.model_source is not None
         and plan.model_path == plan.source.uri
         and is_s3_uri(plan.source.uri)
         and plan.load_format == "runai_streamer"
@@ -269,7 +271,7 @@ def _materialize_scaled_out_s3_model(server_args: dict, args) -> dict:
     example, Qwen3.5 still performs HuggingFace path validation), so dynamic
     engines materialize the canonical S3 source before SGLang starts.
     """
-    model_source = getattr(args, "model_source", None)
+    model_source = args.model_source
     model_path = server_args.get("model_path")
     if model_source is None or model_path != model_source.uri or not is_s3_uri(model_path):
         return server_args
@@ -650,14 +652,14 @@ class SGLangEngine(RayActor):
             server_args_dict = _apply_sglang_policy_load_plan(server_args_dict, self.args)
 
         logger.info(f"Launch HttpServerEngineAdapter at: {self.server_host}:{self.server_port}")
-        if getattr(self.args, "optimize_routing_replay", False):
+        if optional_arg(self.args, "optimize_routing_replay", False):
             os.environ["RELAX_OPTIMIZE_ROUTING_REPLAY"] = "1"
 
         if Envs.RELAX_OPD_PER_POS_TOKEN_IDS:
             os.environ["RELAX_FORCE_LOGPROBS_BASE64"] = "1"
             logger.info(
                 "Set RELAX_FORCE_LOGPROBS_BASE64=1 (opd_log_prob_top_k=%s; query K is sent per request)",
-                getattr(self.args, "opd_log_prob_top_k", 0),
+                optional_arg(self.args, "opd_log_prob_top_k", 0),
             )
 
         # Set SGLang external model/processor package env vars so the spawned
@@ -678,7 +680,7 @@ class SGLangEngine(RayActor):
         # subprocess mmaps the safetensors. Applies uniformly to rollout / genrm /
         # teacher because they all take this path; the shared marker keyed by
         # abs_path collapses repeated calls on the same node to a single read.
-        if getattr(self.args, "warm_hf_checkpoint_page_cache", False):
+        if optional_arg(self.args, "warm_hf_checkpoint_page_cache", False):
             from relax.utils.hf_page_cache import warm_hf_checkpoint_page_cache
 
             warm_hf_checkpoint_page_cache(server_args_dict.get("model_path"))
@@ -1910,7 +1912,7 @@ class GenRMEngine(SGLangEngine):
 
 
 def _enable_draft_weights_cpu_backup(args, sglang_overrides: dict | None = None) -> bool:
-    if getattr(args, "enable_mtp_training", False):
+    if args.enable_mtp_training:
         return False
 
     speculative_algorithm = getattr(args, "sglang_speculative_algorithm", None)
@@ -2126,7 +2128,7 @@ def _compute_server_args(
     # LoRA adapter mode: launch the engine with SGLang's runtime LoRA serving so the
     # trained adapter can be pushed each step via load_lora_adapter (see
     # UpdateWeightFromTensor._push_lora_adapter) and selected at generation via lora_path.
-    if is_lora_enabled(args) and getattr(args, "lora_adapter_mode", False):
+    if is_lora_enabled(args) and args.lora_adapter_mode:
         kwargs["enable_lora"] = True
         kwargs["max_lora_rank"] = args.lora_rank
         # SGLang matches modules by leaf name; CLI holds canonical Megatron names. Fused
@@ -2155,7 +2157,7 @@ def _compute_server_args(
 
     if args.use_rollout_routing_replay:
         kwargs["enable_return_routed_experts"] = True
-    if getattr(args, "use_rollout_indexer_replay", False):
+    if args.use_rollout_indexer_replay:
         kwargs["enable_return_indexer_topk"] = True
     if args.fp16:
         kwargs["dtype"] = "float16"

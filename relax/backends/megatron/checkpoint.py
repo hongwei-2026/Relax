@@ -23,6 +23,7 @@ from relax.utils.distributed_utils import get_gloo_group
 from relax.utils.hf_page_cache import warm_hf_checkpoint_page_cache
 from relax.utils.logging_utils import get_logger
 from relax.utils.model_source import is_model_source_alias
+from relax.utils.optional_args import optional_arg
 from relax.utils.training.ppo_utils import (
     use_critic_lm_head_for_hf_load,
     use_sequence_classification_lm_head_for_hf_load,
@@ -317,19 +318,19 @@ def _lora_checkpoint_metadata(args, trainable_names: tuple[str, ...]) -> dict:
         "lora_target_modules": tuple(args.lora_target_modules or ()),
         "lora_scope": args.lora_scope,
         "lora_merge_mode": args.lora_merge_mode,
-        "lora_adapter_mode": getattr(args, "lora_adapter_mode", False),
+        "lora_adapter_mode": args.lora_adapter_mode,
         "tensor_model_parallel_size": args.tensor_model_parallel_size,
         "pipeline_model_parallel_size": args.pipeline_model_parallel_size,
         "context_parallel_size": args.context_parallel_size,
         "expert_model_parallel_size": args.expert_model_parallel_size,
-        "expert_tensor_parallel_size": getattr(args, "expert_tensor_parallel_size", 1),
-        "virtual_pipeline_model_parallel_size": getattr(args, "virtual_pipeline_model_parallel_size", None),
-        "pipeline_model_parallel_layout": str(getattr(args, "pipeline_model_parallel_layout", None)),
-        "decoder_first_pipeline_num_layers": getattr(args, "decoder_first_pipeline_num_layers", None),
-        "decoder_last_pipeline_num_layers": getattr(args, "decoder_last_pipeline_num_layers", None),
-        "num_layers_per_virtual_pipeline_stage": getattr(args, "num_layers_per_virtual_pipeline_stage", None),
+        "expert_tensor_parallel_size": optional_arg(args, "expert_tensor_parallel_size", 1),
+        "virtual_pipeline_model_parallel_size": optional_arg(args, "virtual_pipeline_model_parallel_size", None),
+        "pipeline_model_parallel_layout": str(optional_arg(args, "pipeline_model_parallel_layout", None)),
+        "decoder_first_pipeline_num_layers": optional_arg(args, "decoder_first_pipeline_num_layers", None),
+        "decoder_last_pipeline_num_layers": optional_arg(args, "decoder_last_pipeline_num_layers", None),
+        "num_layers_per_virtual_pipeline_stage": optional_arg(args, "num_layers_per_virtual_pipeline_stage", None),
         "world_size": args.world_size,
-        "data_parallel_size": getattr(args, "data_parallel_size", None),
+        "data_parallel_size": optional_arg(args, "data_parallel_size", None),
         "trainable_parameter_names": trainable_names,
     }
 
@@ -632,9 +633,9 @@ def _checkpoint_load_state(load_path: str, args: Namespace, load_optimizer: bool
     """Probe only host metadata before deciding which collective loader to
     use."""
     exists = Path(load_path).exists() and _is_dir_nonempty(load_path)
-    megatron = exists and (is_megatron_checkpoint(load_path) or bool(getattr(args, "ckpt_step", None)))
+    megatron = exists and (is_megatron_checkpoint(load_path) or bool(optional_arg(args, "ckpt_step", None)))
     iteration_dir = (
-        _resolve_checkpoint_iteration_dir(load_path, ckpt_step=getattr(args, "ckpt_step", None)) if megatron else None
+        _resolve_checkpoint_iteration_dir(load_path, ckpt_step=optional_arg(args, "ckpt_step", None)) if megatron else None
     )
     valid_iteration = iteration_dir is not None and iteration_dir.is_dir()
     return {
@@ -657,7 +658,7 @@ def load_checkpoint(ddp_model, optimizer, opt_param_scheduler, checkpointing_con
     load_path = args.load
 
     load_optimizer = (
-        optimizer is not None and not getattr(args, "no_load_optim", False) and not getattr(args, "finetune", False)
+        optimizer is not None and not optional_arg(args, "no_load_optim", False) and not optional_arg(args, "finetune", False)
     )
     state = _collective_checkpoint_probe(lambda: _checkpoint_load_state(load_path, args, load_optimizer))
     exist = state["exists"]
@@ -687,7 +688,7 @@ def load_checkpoint(ddp_model, optimizer, opt_param_scheduler, checkpointing_con
         _alias_renamed_transfer_queue_enum()
         if (
             optimizer is not None
-            and getattr(args, "optimizer_cpu_offload", False)
+            and optional_arg(args, "optimizer_cpu_offload", False)
             and patch_hybrid_optimizer_native_fp32_checkpoint_load()
         ):
             logger.info("Applied compatibility fix for native-FP32 CPU-offloaded optimizer checkpoint load")
@@ -702,8 +703,8 @@ def load_checkpoint(ddp_model, optimizer, opt_param_scheduler, checkpointing_con
                 step_context = (
                     preserve_hdo_dp_reshardable_steps_on_load()
                     if optimizer is not None
-                    and getattr(args, "optimizer_cpu_offload", False)
-                    and not getattr(args, "no_load_optim", False)
+                    and optional_arg(args, "optimizer_cpu_offload", False)
+                    and not optional_arg(args, "no_load_optim", False)
                     and not skip_load_to_model_and_opt
                     else nullcontext()
                 )
@@ -772,13 +773,13 @@ def _format_opt_param_scheduler_error(args, original: AssertionError) -> str:
         f"by changing one of the args that feed into `lr_decay_steps` / `wd_incr_steps`:\n"
         f"    lr_decay_steps = num_rollout * rollout_batch_size * n_samples_per_prompt\n"
         f"Current values:\n"
-        f"    --num-rollout            {getattr(args, 'num_rollout', None)}\n"
-        f"    --rollout-batch-size     {getattr(args, 'rollout_batch_size', None)}\n"
-        f"    --n-samples-per-prompt   {getattr(args, 'n_samples_per_prompt', None)}\n"
-        f"    --global-batch-size      {getattr(args, 'global_batch_size', None)}\n"
-        f"    --lr-decay-iters         {getattr(args, 'lr_decay_iters', None)}\n"
-        f"    --lr-warmup-iters        {getattr(args, 'lr_warmup_iters', None)}\n"
-        f"    --lr-warmup-fraction     {getattr(args, 'lr_warmup_fraction', None)}\n\n"
+        f"    --num-rollout            {args.num_rollout}\n"
+        f"    --rollout-batch-size     {args.rollout_batch_size}\n"
+        f"    --n-samples-per-prompt   {args.n_samples_per_prompt}\n"
+        f"    --global-batch-size      {args.global_batch_size}\n"
+        f"    --lr-decay-iters         {optional_arg(args, 'lr_decay_iters', None)}\n"
+        f"    --lr-warmup-iters        {optional_arg(args, 'lr_warmup_iters', None)}\n"
+        f"    --lr-warmup-fraction     {optional_arg(args, 'lr_warmup_fraction', None)}\n\n"
         f"Pick one:\n"
         f"  (a) Revert the changed arg to match the checkpoint, OR\n"
         f"  (b) Add `--override-opt_param-scheduler` to keep the NEW schedule "
@@ -861,7 +862,7 @@ def _load_checkpoint_hf(ddp_model, optimizer, args, load_path: str | None):
         f"Load checkpoint from HuggingFace model into Megatron (requested_path={load_path}, source_path={source_path})"
     )
 
-    if getattr(args, "warm_hf_checkpoint_page_cache", False):
+    if args.warm_hf_checkpoint_page_cache:
         warm_hf_checkpoint_page_cache(source_path)
 
     with use_critic_lm_head_for_hf_load(ddp_model):
@@ -976,7 +977,7 @@ def _save_lora_to_checkpoint(model, checkpoint_dir: str, args, bridge=None) -> N
                 "lora_target_modules": list(args.lora_target_modules),
                 "lora_dropout": args.lora_dropout,
                 "lora_merge_mode": args.lora_merge_mode,
-                "lora_adapter_mode": getattr(args, "lora_adapter_mode", False),
+                "lora_adapter_mode": args.lora_adapter_mode,
             }
             with open(adapter_dir / "relax_lora_meta.json", "w") as f:
                 json.dump(metadata, f)

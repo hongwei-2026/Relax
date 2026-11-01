@@ -34,6 +34,8 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from relax.utils.optional_args import optional_arg
+
 
 if TYPE_CHECKING:
     import torch
@@ -343,7 +345,7 @@ def _worker(rank: int, master: str, port: int, args: argparse.Namespace) -> dict
     torch.cuda.set_device(0)
     dist.init_process_group("gloo", rank=rank, world_size=args.world_size, timeout=timedelta(hours=24))
     try:
-        merge_lora = getattr(args, "merge_lora", False)
+        merge_lora = optional_arg(args, "merge_lora", False)
         sys.path.insert(0, str(Path(args.repo_root) / "examples/models/kimi-k3/tools"))
         _install_load_patches(args.input_dir, merge_lora=merge_lora)
         path = Path(args.repo_root) / "scripts/tools/convert_torch_dist_to_hf_bridge.py"
@@ -432,10 +434,10 @@ def _publish(args: argparse.Namespace, summaries: list[dict[str, int]]) -> None:
         "parallelism": {"tp": args.tp, "pp": args.pp, "ep": args.ep, "expert_tp": args.expert_tp},
         "quantization": "native MXFP4 E2M1, E8M0 U8 scales, group size 32; GPU per saver",
         "vision_source": "checkpoint when present; otherwise exact HF base"
-        if getattr(args, "merge_lora", False)
+        if optional_arg(args, "merge_lora", False)
         else "training checkpoint",
-        "lora_merge": getattr(args, "merge_lora", False),
-        "lora_base": args.origin_hf_dir if getattr(args, "merge_lora", False) else None,
+        "lora_merge": optional_arg(args, "merge_lora", False),
+        "lora_base": args.origin_hf_dir if optional_arg(args, "merge_lora", False) else None,
         "config": "verbatim origin config.json",
         "validation": summaries,
         "completed_at": datetime.now().isoformat(),

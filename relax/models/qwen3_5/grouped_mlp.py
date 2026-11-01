@@ -6,6 +6,8 @@ import os
 from pathlib import Path
 from typing import Any
 
+from relax.utils.optional_args import optional_arg
+
 
 _INSTALLED = None
 
@@ -42,9 +44,9 @@ def install(args: Any, model: list, optimizer: Any) -> None:
 
     assert args.tensor_model_parallel_size in (4,)
     assert args.context_parallel_size == 1
-    assert not getattr(args, "use_megatron_fsdp", False)
+    assert not optional_arg(args, "use_megatron_fsdp", False)
     assert args.expert_tensor_parallel_size == 1
-    assert args.bf16 and not getattr(args, "fp8", None) and not getattr(args, "fp4", None)
+    assert args.bf16 and not optional_arg(args, "fp8", None) and not optional_arg(args, "fp4", None)
     verify_runtime()
     os.environ["NVTE_CUTEDSL_FUSED_GROUPED_MLP"] = "1"
     os.environ["NVTE_GROUPED_LINEAR_USE_FUSED_GROUPED_GEMM"] = "1"
@@ -61,7 +63,7 @@ def install(args: Any, model: list, optimizer: Any) -> None:
         assert not module.linear_fc1.use_bias and not module.linear_fc2.use_bias
         assert module.linear_fc1.fuse_wgrad_accumulation == module.linear_fc2.fuse_wgrad_accumulation
         assert module.linear_fc1.delay_wgrad_compute == module.linear_fc2.delay_wgrad_compute
-        if getattr(args, "use_megatron_fsdp", False):
+        if optional_arg(args, "use_megatron_fsdp", False):
             assert not module.linear_fc1.fuse_wgrad_accumulation
             assert not module.linear_fc1.delay_wgrad_compute
     for module in modules.values():

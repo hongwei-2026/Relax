@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from relax.utils.distributed_utils import get_gloo_group
+from relax.utils.optional_args import optional_arg
 
 
 def _collective_checkpoint_probe(probe: Callable[[], Any]) -> Any:
@@ -47,7 +48,7 @@ def _checkpoint_has_optimizer_state(checkpoint_dir: Path, args: Namespace) -> bo
     checkpoints have no ``.metadata`` and are assumed loadable, keeping the
     previous fail-loudly behavior.
     """
-    if getattr(args, "ckpt_format", None) not in ("torch_dist", "torch_dcp", "fsdp_dtensor"):
+    if optional_arg(args, "ckpt_format", None) not in ("torch_dist", "torch_dcp", "fsdp_dtensor"):
         return True
     if not (Path(checkpoint_dir) / ".metadata").is_file():
         return True

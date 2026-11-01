@@ -24,6 +24,8 @@ from datetime import timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable
 
+from relax.utils.optional_args import optional_arg
+
 
 if TYPE_CHECKING:
     import torch
@@ -263,8 +265,8 @@ def _worker(rank: int, master: str, port: int, args: argparse.Namespace) -> dict
         original_hooks(bridge, input_dir, transform)
         # Bridge merges LoRA after mapping. Quantizing inside mapping would
         # therefore attempt to add BF16 deltas to packed MXFP4 tensors.
-        if not getattr(args, "merge_lora", False):
-            if getattr(args, "expert_gather_backend", "gloo") == "nccl":
+        if not optional_arg(args, "merge_lora", False):
+            if optional_arg(args, "expert_gather_backend", "gloo") == "nccl":
                 gather = NcclExpertGather()
                 _logger().info("Routed-expert EP all-gather backend: nccl")
             restore = install_parallel_mappings(transform.layout, quantizer, gather)
@@ -275,7 +277,7 @@ def _worker(rank: int, master: str, port: int, args: argparse.Namespace) -> dict
     started = time.monotonic()
     try:
         summary = baseline._worker(rank, master, port, args)
-        if quantizer.calls == 0 and not getattr(args, "merge_lora", False):
+        if quantizer.calls == 0 and not optional_arg(args, "merge_lora", False):
             raise RuntimeError("Parallel expert quantization was never invoked")
         stats = {
             "rank": rank,
@@ -372,7 +374,7 @@ def main() -> None:
                     "strategy": "BF16 gather, LoRA merge, owner-rank MXFP4 quantization"
                     if args.merge_lora
                     else "local BF16 expert MXFP4 quantization before EP all-gather",
-                    "expert_gather_backend": getattr(args, "expert_gather_backend", "gloo"),
+                    "expert_gather_backend": optional_arg(args, "expert_gather_backend", "gloo"),
                     "export_seconds": time.monotonic() - started,
                     "expert_tp": args.expert_tp,
                     "workers": stats,

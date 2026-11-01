@@ -12,6 +12,8 @@ import struct
 from pathlib import Path
 from typing import Any
 
+from relax.utils.optional_args import optional_arg
+
 
 def read_common_state(checkpoint: str, metadata: Any) -> dict[str, Any]:
     """Read only the small common-state storage record, never optimizer
@@ -111,13 +113,13 @@ def read_checkpoint_spec(checkpoint: str, base_hf: str) -> dict[str, Any]:
     metadata = FileSystemReader(checkpoint).read_metadata()
     common = read_common_state(checkpoint, metadata)
     args = common["args"]
-    base = getattr(args, "hf_checkpoint", None)
+    base = args.hf_checkpoint
     if base is None or Path(base).resolve() != Path(base_hf).resolve():
         raise ValueError(f"Base differs from training hf_checkpoint: {base!r}")
-    rank, alpha = getattr(args, "lora_rank", None), getattr(args, "lora_alpha", None)
+    rank, alpha = args.lora_rank, args.lora_alpha
     if not isinstance(rank, int) or rank <= 0 or not isinstance(alpha, (int, float)) or not math.isfinite(alpha):
         raise ValueError("Missing or invalid saved LoRA rank/alpha")
-    if getattr(args, "normalize_moe_lora", False):
+    if optional_arg(args, "normalize_moe_lora", False):
         raise ValueError("Streaming export does not yet support normalize_moe_lora")
     if common.get("content_metadata", {}).get("singleton_local_shards", False):
         raise ValueError("Streaming export requires canonical non-singleton DCP tensor layout")
@@ -165,10 +167,10 @@ def read_checkpoint_spec(checkpoint: str, base_hf: str) -> dict[str, Any]:
         "rank": rank,
         "alpha": alpha,
         "scale": alpha / rank,
-        "tp": getattr(args, "tensor_model_parallel_size", None),
-        "pp": getattr(args, "pipeline_model_parallel_size", None),
-        "ep": getattr(args, "expert_model_parallel_size", None),
-        "expert_tp": getattr(args, "expert_tensor_parallel_size", None),
+        "tp": optional_arg(args, "tensor_model_parallel_size", None),
+        "pp": optional_arg(args, "pipeline_model_parallel_size", None),
+        "ep": optional_arg(args, "expert_model_parallel_size", None),
+        "expert_tp": optional_arg(args, "expert_tensor_parallel_size", None),
         "normalize_moe_lora": False,
         "fc1_layout": "canonical gate rows followed by up rows",
         "iteration": common.get("iteration"),

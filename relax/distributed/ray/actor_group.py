@@ -10,6 +10,7 @@ from ray.util.scheduling_strategies import PlacementGroupSchedulingStrategy
 from relax.core.node_group_affinity import with_control_plane_affinity
 from relax.distributed.ray.utils import NOSET_VISIBLE_DEVICES_ENV_VARS_LIST, Lock
 from relax.utils.env import Envs
+from relax.utils.optional_args import optional_arg
 from relax.utils.utils import get_ray_accelerator_kwargs
 
 
@@ -19,7 +20,7 @@ def _resolve_train_actor_class(args):
     Defaults to Megatron so existing token-RL runs are unaffected; ``fsdp``
     selects the FSDP2 actor used by native generative RL (design doc 8.3).
     """
-    backend = getattr(args, "train_backend", "megatron")
+    backend = args.train_backend
     if backend == "fsdp":
         from relax.backends.fsdp.actor import FSDPTrainRayActor
 
@@ -93,7 +94,7 @@ class RayTrainGroup:
         if (
             self.args.offload_train
             and self.args.train_backend == "megatron"
-            and not getattr(self.args, "selective_offload", False)
+            and not optional_arg(self.args, "selective_offload", False)
         ):
             import torch_memory_saver
 

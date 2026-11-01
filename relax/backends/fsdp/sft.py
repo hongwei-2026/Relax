@@ -20,6 +20,7 @@ import torch.distributed as dist
 from relax.backends.fsdp import checkpoint
 from relax.engine.sft.image import ImageBatchSampler, ImageEditDataset, assign_image_batch
 from relax.utils.logging_utils import get_logger
+from relax.utils.optional_args import optional_arg
 
 
 logger = get_logger(__name__)
@@ -102,7 +103,7 @@ class FSDPSFTTrainer:
             raise ValueError(f"Image dataset initialization failed: {errors}")
         self.sampler = ImageBatchSampler(config["dataset_size"], self.args.global_batch_size, self.args.seed)
         self.parameters = [p for p in actor.model.parameters() if p.requires_grad]
-        warmup = int(getattr(self.args, "lr_warmup_iters", 0) or 0)
+        warmup = int(optional_arg(self.args, "lr_warmup_iters", 0) or 0)
         self.scheduler = (
             torch.optim.lr_scheduler.LinearLR(actor.optimizer, start_factor=1e-8, end_factor=1.0, total_iters=warmup)
             if warmup > 0

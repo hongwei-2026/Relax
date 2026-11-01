@@ -7,6 +7,7 @@ from typing import Any, Optional, Sequence
 import torch
 
 from relax.backends.megatron.kernels.fp8_kernel import blockwise_cast_to_fp8_triton
+from relax.utils.optional_args import optional_arg
 
 from ...sglang import quant_weight_ue8m0, should_deepgemm_weight_requant_ue8m0, transform_scale_ue8m0
 
@@ -26,13 +27,13 @@ def _resolve_online_weight_scale_fmt(
     # pre-5392 behavior by default: ordinary FP32 scales on Hopper, while
     # _quantize_param can still select packed UE8M0 when the runtime requires it.
     # Reproducing the checkpoint's UE8M0 grid is an explicit DSV4-style opt-in.
-    if getattr(args, "fp8", None) is None:
+    if optional_arg(args, "fp8", None) is None:
         preserve_ue8m0_grid = os.environ.get(_BF16_SENDER_PRESERVE_UE8M0_GRID_ENV, "0")
         if preserve_ue8m0_grid not in ("0", "1"):
             raise ValueError(f"{_BF16_SENDER_PRESERVE_UE8M0_GRID_ENV} must be 0 or 1, got {preserve_ue8m0_grid!r}")
         return configured_scale_fmt if preserve_ue8m0_grid == "1" else None
 
-    fp8_recipe = getattr(args, "fp8_recipe", None)
+    fp8_recipe = optional_arg(args, "fp8_recipe", None)
     fp8_recipe = getattr(fp8_recipe, "value", fp8_recipe)
     use_fp32_scales = os.environ.get("NVTE_FP8_BLOCK_SCALING_FP32_SCALES", "0") == "1"
     if fp8_recipe != "blockwise" or not use_fp32_scales:

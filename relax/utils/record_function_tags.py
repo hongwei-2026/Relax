@@ -20,6 +20,8 @@ from typing import Any
 
 import torch
 
+from relax.utils.optional_args import optional_arg
+
 
 _phase: ContextVar[str] = ContextVar("rcd_phase", default="fwd")
 _checkpoint_layers: ContextVar[list[str] | None] = ContextVar("rcd_checkpoint_layers", default=None)
@@ -357,9 +359,9 @@ def install_record_function_tags(args: Any, model_chunks: Any) -> list[dict[str,
     if not _should_profile_train_rank(args):
         return []
     if (
-        getattr(args, "recompute_granularity", None) != "full"
-        or not isinstance(getattr(args, "recompute_num_layers", None), int)
-        or getattr(args, "recompute_num_layers", 0) < 1
+        optional_arg(args, "recompute_granularity", None) != "full"
+        or not isinstance(optional_arg(args, "recompute_num_layers", None), int)
+        or optional_arg(args, "recompute_num_layers", 0) < 1
     ):
         raise RuntimeError("RCD profiling requires full recomputation with a positive recompute_num_layers")
     from megatron.core import parallel_state

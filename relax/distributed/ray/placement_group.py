@@ -18,6 +18,7 @@ from relax.utils.device import ray_get_device_ids
 from relax.utils.env import Envs
 from relax.utils.http_utils import get_host_info
 from relax.utils.logging_utils import get_logger
+from relax.utils.optional_args import optional_arg
 from relax.utils.utils import get_ray_accelerator_kwargs
 
 from .actor_group import RayTrainGroup
@@ -204,7 +205,7 @@ def create_rollout_manager(args, pg, data_source=None, runtime_env=None):
     # has no RL global dataset, so trust those values and skip the RL-side
     # computation (which would assert on rollout_global_dataset).
     if is_offline_mode(args):
-        num_rollout_per_epoch = getattr(args, "num_rollout_per_epoch", None)
+        num_rollout_per_epoch = optional_arg(args, "num_rollout_per_epoch", None)
         logger.info(
             f"RolloutManager initialized successfully (offline mode). "
             f"num_rollout_per_epoch={num_rollout_per_epoch} (pre-resolved by controller)."

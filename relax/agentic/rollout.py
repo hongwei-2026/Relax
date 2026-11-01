@@ -41,6 +41,7 @@ from relax.engine.rollout import on_policy_distillation as opd
 from relax.engine.rollout.base_types import RolloutFnEvalOutput, RolloutFnTrainOutput
 from relax.utils.logging_utils import get_logger
 from relax.utils.metrics.metric_utils import finalize_rollout_explicit_metric_values
+from relax.utils.optional_args import optional_arg
 from relax.utils.profile_utils import start_sglang_profile, stop_sglang_profile
 from relax.utils.training.eval_config import EvalDatasetConfig
 from relax.utils.training.train_dump_utils import save_debug_rollout_data
@@ -193,9 +194,7 @@ class AgenticResidentPipeline:
             metrics = dict(output.metrics or {})
             metrics.update(_aggregate_agentic_timing(samples))
             metrics.update(self.reward_domain.collect_metrics())
-            if getattr(self.args, "agentic_program_admission", False) or getattr(
-                self.args, "agentic_session_lifecycle", False
-            ):
+            if optional_arg(self.args, "agentic_program_admission", False) or optional_arg(self.args, "agentic_session_lifecycle", False):
                 metrics.update(await self.runtime_domain.collect_agentic_kv_metrics())
             for key, value in _collect_agentic_metadata_metrics(samples).items():
                 metrics.setdefault(key, value)
@@ -855,7 +854,7 @@ def _build_eval_samples(
 
     resources = load_agentic_compiler_resources(args)
     try:
-        custom_prompt_path = getattr(args, "custom_prompt_path", None)
+        custom_prompt_path = args.custom_prompt_path
         custom_prompt_func = load_function(custom_prompt_path) if custom_prompt_path else None
         dataset = Dataset(
             path=dataset_cfg.path,

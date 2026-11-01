@@ -29,6 +29,7 @@ from __future__ import annotations
 from typing import Any, Dict, List
 
 from relax.utils.logging_utils import get_logger
+from relax.utils.optional_args import optional_arg
 
 
 logger = get_logger(__name__)
@@ -54,7 +55,7 @@ class LocalGenerativeRewardManager:
 
     def _ensure(self):
         if self._scorer is None:
-            if not getattr(self.args, "reward_scorer_path", None):
+            if not optional_arg(self.args, "reward_scorer_path", None):
                 raise ValueError("reward_scorer_path is required to score generative rewards.")
             self._scorer = _load_scorer(self.args)
         return self._scorer
@@ -87,7 +88,7 @@ class GenerativeRewardManager:
     def score(self, requests: List[Dict[str, Any]]) -> Dict[str, List[float]]:
         import requests as http
 
-        endpoint = getattr(self.args, "reward_endpoint", None)
+        endpoint = optional_arg(self.args, "reward_endpoint", None)
         if not endpoint:
             raise ValueError("reward_runtime=remote requires reward_endpoint.")
         resp = http.post(endpoint, json={"requests": requests}, timeout=600)

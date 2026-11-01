@@ -17,6 +17,7 @@ from relax.distributed.ray.multi_engine_manager import MultiEngineManager, _is_e
 from relax.distributed.ray.utils import NOSET_VISIBLE_DEVICES_ENV_VARS_LIST, Lock
 from relax.utils.http_utils import init_http_client
 from relax.utils.logging_utils import get_logger
+from relax.utils.optional_args import optional_arg
 
 
 logging.getLogger("httpx").setLevel(logging.WARNING)
@@ -112,7 +113,7 @@ class GenRMManager(MultiEngineManager):
         # rejection).
         shared_with_rollout = getattr(self.args, "_genrm_colocate_with_rollout", False)
         default_ray_num_gpus = 0.1 if shared_with_rollout else 0.2
-        num_gpus = getattr(self.args, "genrm_ray_num_gpus", default_ray_num_gpus)
+        num_gpus = optional_arg(self.args, "genrm_ray_num_gpus", default_ray_num_gpus)
         return {"num_cpus": num_gpus, "num_gpus": num_gpus}
 
     def _build_engine_env_vars(self):
@@ -131,7 +132,7 @@ class GenRMManager(MultiEngineManager):
             # custom_all_reduce.cuh:37: CUDA error: invalid argument during CUDA graph capture.
             "SGLANG_OPT_USE_CUSTOM_ALL_REDUCE_V2": "0",
         }
-        if getattr(self.args, "fp16", False):
+        if optional_arg(self.args, "fp16", False):
             env_vars["SGLANG_MAMBA_CONV_DTYPE"] = "float16"
         return env_vars
 

@@ -71,6 +71,7 @@ from relax.agentic.session.state import (
 )
 from relax.utils.http_utils import is_router_no_available_workers
 from relax.utils.logging_utils import get_logger
+from relax.utils.optional_args import optional_arg
 from relax.utils.types import get_spec_token_counts
 
 
@@ -2465,7 +2466,7 @@ class AgenticSessionShard:
                         return
                 if attempt:
                     raise RuntimeGroupError("SGLang router still has no available workers after recovery wait")
-                wait_s = float(getattr(self.args, "router_cb_timeout_duration_secs", 60)) + 2
+                wait_s = float(optional_arg(self.args, "router_cb_timeout_duration_secs", 60)) + 2
                 logger.warning("SGLang router has no available workers; retrying generation once after %.1fs", wait_s)
                 await asyncio.sleep(wait_s)
         except asyncio.CancelledError:
@@ -2587,7 +2588,7 @@ class AgenticSessionShard:
             meta_info=result.meta_info,
             token_count=len(ir.history_train_token_prefix) + len(ir.pending_token_delta),
         )
-        if getattr(self.args, "use_rollout_routing_replay", False) and result.new_tokens and routed_experts is None:
+        if optional_arg(self.args, "use_rollout_routing_replay", False) and result.new_tokens and routed_experts is None:
             raise ValueError("Backend omitted routed experts for newly accepted tokens")
         ir.pending_routed_experts = merge_routed_experts(
             ir.pending_routed_experts,

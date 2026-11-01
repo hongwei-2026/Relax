@@ -12,6 +12,7 @@ from contextvars import ContextVar
 from typing import Any, Callable
 
 from relax.utils.env import Envs
+from relax.utils.optional_args import optional_arg
 
 
 def validate_args(args: Any) -> None:
@@ -28,13 +29,13 @@ def validate_args(args: Any) -> None:
     for name, value in expected.items():
         if getattr(args, name, None) != value:
             raise RuntimeError(f"QSA retained attention requires {name}={value!r}")
-    if not getattr(args, "bf16", False) or getattr(args, "fp8", None) or getattr(args, "fp4", None):
+    if not optional_arg(args, "bf16", False) or optional_arg(args, "fp8", None) or optional_arg(args, "fp4", None):
         raise RuntimeError("QSA retained attention requires BF16 without FP8/FP4")
-    if getattr(args, "cpu_offloading", False) or getattr(args, "distribute_saved_activations", False):
+    if optional_arg(args, "cpu_offloading", False) or optional_arg(args, "distribute_saved_activations", False):
         raise RuntimeError("QSA retained attention excludes activation offload/distributed saved activations")
-    if getattr(args, "virtual_pipeline_model_parallel_size", None):
+    if optional_arg(args, "virtual_pipeline_model_parallel_size", None):
         raise RuntimeError("QSA retained attention does not support virtual pipeline")
-    if getattr(args, "cuda_graph_impl", "none") not in (None, "none"):
+    if optional_arg(args, "cuda_graph_impl", "none") not in (None, "none"):
         raise RuntimeError("QSA retained attention does not support CUDA graphs")
 
 

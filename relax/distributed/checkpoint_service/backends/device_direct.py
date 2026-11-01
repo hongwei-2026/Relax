@@ -48,6 +48,7 @@ from relax.utils.megatron_peft_utils import (
     is_lora_enabled,
     is_lora_merge_mode,
 )
+from relax.utils.optional_args import optional_arg
 
 
 logging.getLogger("httpx").setLevel(logging.WARNING)
@@ -199,7 +200,7 @@ class DeviceDirectBackend(CommBackend):
         device_module.set_device(self.device)
 
         # Bridge-based HF weight converter (lazy-initialized on first use)
-        self._use_bridge = getattr(args, "megatron_to_hf_mode", None) == "bridge"
+        self._use_bridge = args.megatron_to_hf_mode == "bridge"
         self._rollout_bucket_splitter = self._megatron.get_dcs_bucket_splitter(
             model_name, use_bridge=self._use_bridge, has_model=bool(model)
         )
@@ -670,7 +671,7 @@ class DeviceDirectBackend(CommBackend):
                     n_other,
                     n_expert,
                 )
-        elif self._lora_adapter_mode and getattr(self.args, "num_experts", 0) and not rollout_only:
+        elif self._lora_adapter_mode and optional_arg(self.args, "num_experts", 0) and not rollout_only:
             # Adapter mode + MoE, off-policy (actor_fwd present): the rollout gets expert deltas as
             # a pure adapter via /update_lora_from_distributed, but actor_fwd has no adapter transport
             # of its own, so its grouped-expert delta is folded into the base (reuse the merge math;
@@ -735,7 +736,7 @@ class DeviceDirectBackend(CommBackend):
             origin_named_tensors.clear()
         dist.barrier(group=get_gloo_group())
 
-        if self._lora_adapter_mode and getattr(self.args, "num_experts", 0):
+        if self._lora_adapter_mode and optional_arg(self.args, "num_experts", 0):
             # Adapter mode + MoE: the expert delta reaches the rollout as a pure adapter via the
             # /update_lora_from_distributed push, so the expert base is converted for rollout only on
             # the first sync (base is frozen in LoRA training). actor_fwd/reference has no adapter
@@ -1101,7 +1102,7 @@ class DeviceDirectBackend(CommBackend):
         loop ends when a special 'weight_updated_stop' marker is seen.
         """
         index = 0
-        long_poll_wait_s = float(getattr(self.args, "dcs_recv_weight_meta_wait_timeout_s", 20.0))
+        long_poll_wait_s = float(optional_arg(self.args, "dcs_recv_weight_meta_wait_timeout_s", 20.0))
         # Ensure read timeout is longer than long-poll wait duration.
         recv_timeout = httpx.Timeout(connect=5.0, read=max(long_poll_wait_s + 5.0, 10.0), write=30.0, pool=30.0)
         while True:
@@ -1172,7 +1173,7 @@ class DeviceDirectBackend(CommBackend):
         on rollout/SGLang engines where the Megatron expert groups are not
         initialized (get_expert_tensor_parallel_world_size() -> None).
         """
-        if self._lora_moe_etp_checked or not getattr(self.args, "num_experts", 0):
+        if self._lora_moe_etp_checked or not optional_arg(self.args, "num_experts", 0):
             return
         etp = self._megatron.mpu.get_expert_tensor_parallel_world_size()
         assert etp == 1, (

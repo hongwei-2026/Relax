@@ -19,6 +19,7 @@ import math
 import os
 from typing import Any
 
+from relax.utils.optional_args import optional_arg
 from relax.utils.tq.correctness import ensure_mooncake_correctness_guards
 
 
@@ -35,6 +36,20 @@ _DEFAULT_LOCAL_BUFFER_SIZE = 1 * 1024**3  # 1 GiB per client (config.yaml:54)
 _DEFAULT_METADATA_SERVER = "P2PHANDSHAKE"  # config.yaml:42-43
 
 
+def ensure_tq_config_defaults(args: Any) -> None:
+    """Fill missing TQ fields for program-built or restored configs.
+
+    CLI parse always sets these from argparse defaults. External Namespace /
+    checkpoint-restored configs may omit them; callers must run this before
+    :func:`validate_config` so direct reads stay valid while preserving the
+    historical missing-mode → ``off`` contract.
+    """
+    if not hasattr(args, "tq_rdma_mode"):
+        args.tq_rdma_mode = "off"
+    if not hasattr(args, "tq_rdma_device"):
+        args.tq_rdma_device = ""
+
+
 def validate_config(args: Any) -> list[str]:
     """Return error messages for an invalid RDMA configuration.
 
@@ -44,9 +59,10 @@ def validate_config(args: Any) -> list[str]:
     constrains the mode for CLI runs, so this also covers configs restored from
     a checkpoint or built programmatically.
     """
+    ensure_tq_config_defaults(args)
     errors: list[str] = []
-    mode = getattr(args, "tq_rdma_mode", "off")
-    device = getattr(args, "tq_rdma_device", "")
+    mode = args.tq_rdma_mode
+    device = args.tq_rdma_device
 
     if not isinstance(mode, str) or mode not in TQ_RDMA_MODES:
         errors.append(f"--tq-rdma-mode must be one of {', '.join(sorted(TQ_RDMA_MODES))}.")
@@ -274,8 +290,8 @@ def resolve_tq_capacity_batch_size(args: Any) -> int:
     MooncakeStore's payload capacity.
     """
     rollout_batch = getattr(args, "rollout_batch_size")
-    if getattr(args, "partial_rollout", False) and getattr(args, "use_dynamic_global_batch_size", False):
-        over_sampling_batch = getattr(args, "over_sampling_batch_size", None)
+    if args.partial_rollout and args.use_dynamic_global_batch_size:
+        over_sampling_batch = args.over_sampling_batch_size
         if over_sampling_batch is not None:
             return int(over_sampling_batch)
     return int(rollout_batch)
@@ -293,14 +309,14 @@ def estimate_payload_bytes(args: Any) -> int:
     """
     n_samples = args.n_samples_per_prompt
     capacity_batch = resolve_tq_capacity_batch_size(args)
-    seq_length = int(getattr(args, "seq_length", 0) or 0)
+    seq_length = int(optional_arg(args, "seq_length", 0) or 0)
     if seq_length <= 0:
         raise RuntimeError(
             "MooncakeStore segment-capacity validation needs args.seq_length to bound "
             "the per-sample payload; got a missing or non-positive value."
         )
     per_sample = seq_length * _TEXT_BYTES_PER_TOKEN
-    if getattr(args, "multimodal_keys", None) is not None:
+    if args.multimodal_keys is not None:
         per_sample += seq_length * _MULTIMODAL_BYTES_PER_TOKEN
     return capacity_batch * n_samples * per_sample
 
@@ -311,7 +327,7 @@ def validate_segment_capacity(args: Any) -> str | None:
     Only used for MooncakeStore. Compares the per-client segment size
     (``global_segment_size``) against the estimated in-flight payload.
     """
-    max_staleness = getattr(args, "max_staleness", 0)
+    max_staleness = args.max_staleness
     capacity_batch = resolve_tq_capacity_batch_size(args)
     payload = estimate_payload_bytes(args)
     needed = payload * (max_staleness + 1)

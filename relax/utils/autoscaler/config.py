@@ -14,6 +14,8 @@ from typing import Any, Dict, Optional
 
 import yaml
 
+from relax.utils.optional_args import optional_arg
+
 
 @dataclass
 class ScaleOutPolicy:
@@ -261,11 +263,11 @@ class AutoscalerConfig:
         Returns:
             AutoscalerConfig instance if config path is provided, None otherwise.
         """
-        config_path = getattr(args, "autoscaler_config", None)
+        config_path = args.autoscaler_config
         if config_path is None:
             return None
 
-        rollout_service_url = getattr(args, "rollout_service_url", None)
+        rollout_service_url = optional_arg(args, "rollout_service_url", None)
         return cls.from_yaml(config_path, rollout_service_url)
 
     def to_dict(self) -> dict:

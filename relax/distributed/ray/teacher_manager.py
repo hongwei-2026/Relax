@@ -12,6 +12,7 @@ from relax.utils.env import Envs
 from relax.utils.http_utils import find_available_port
 from relax.utils.logging_utils import get_logger
 from relax.utils.opd.opd_utils import build_teacher_engine_args, build_teacher_overrides
+from relax.utils.optional_args import optional_arg
 
 
 logger = get_logger(__name__)
@@ -47,7 +48,7 @@ def _build_teacher_engine_env(args) -> dict[str, str]:
         "SGLANG_ENABLE_HEALTH_ENDPOINT_GENERATION": "false",
         "SGLANG_ENABLE_STRICT_MEM_CHECK_DURING_IDLE": "false",
     }
-    if getattr(args, "fp16", False):
+    if optional_arg(args, "fp16", False):
         env_vars["SGLANG_MAMBA_CONV_DTYPE"] = "float16"
     return env_vars
 
@@ -152,7 +153,7 @@ class TeacherManager(MultiEngineManager):
         if owns_pg:
             pg_tuple = create_placement_group(
                 num_gpus=self.gpus_per_replica,
-                node_group_affinity=getattr(self.args, "enable_affinity", True),
+                node_group_affinity=optional_arg(self.args, "enable_affinity", True),
             )
         else:
             pg_tuple = self._engine_placements[replica * self.nodes_per_engine][0]
